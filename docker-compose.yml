@@ -1,0 +1,28 @@
+version: "3"
+
+services:
+  nuxt:
+    build: .
+    container_name: nuxt
+    restart: always
+    command: "yarn run start"
+    networks:
+      - flat-network
+
+  nginx:
+    image: nginx:1.17
+    container_name: nginx
+#    env_file: .env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx:/etc/nginx/conf.d
+      - "./logs:/var/log/nginx"
+    depends_on:
+      - nuxt
+    networks:
+      - flat-network
+
+networks:
+  flat-network:

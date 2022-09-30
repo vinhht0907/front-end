@@ -1,0 +1,255 @@
+<template>
+  <b-modal
+    ref="modal"
+    :cancel-title="$t('button.cancel')"
+    :ok-title="isEdit ? $t('button.update') : $t('button.add')"
+    :title="isEdit ? $t('role.edit') : $t('role.add')"
+    :no-enforce-focus="true"
+    @ok="handleModalOk"
+    @hidden="handleModalHide"
+    size="lg"
+  >
+    <validation-observer ref="observer" class="kt-form">
+      <b-text-input-with-validation
+        v-model="form.name"
+        :required="true"
+        :error="vForm.errors.get('name')"
+        label="Tên part activity"
+        placeholder="Tên part activity"
+        rules="required|max:100"
+        name="name"
+      />
+
+      <b-text-input-with-validation
+        v-model="form.display_name"
+        :required="true"
+        :error="vForm.errors.get('display_name')"
+        label="Tên hiển thị"
+        placeholder="Tên hiển thị"
+        rules="required|max:255"
+        name="display_name"
+      />
+
+      <b-text-area-with-validation
+        v-model="form.description"
+        :label="$t('role.description')"
+        :placeholder="$t('role.description')"
+        :error="vForm.errors.get('description')"
+        rules="max:255"
+        name="description"
+      />
+
+      <b-single-image-upload-with-validation
+        v-model="form.featured_image"
+        :error="vForm.errors.get('featured_image')"
+        :required="true"
+        rules="required"
+        label="Ảnh đại diện"
+        placeholder="Ảnh đại diện"
+      />
+
+      <b-text-input-with-validation
+        v-if="isEdit"
+        :required="true"
+        v-model="form.order"
+        :error="vForm.errors.get('order')"
+        label="Thứ tự"
+        placeholder="Thứ tự"
+        rules="required|numeric|max_value:9999"
+        name="order"
+      />
+
+      <select2-with-validation
+        :required="true"
+        v-model="form.course_id"
+        :error="vForm.errors.get('course_id')"
+        placeholder="Chọn khóa học..."
+        label="Khóa học"
+        data-vv-as="Khóa học"
+        id-field="_id"
+        text-field="name"
+        ajax="/course/suggest"
+        name="course_id"
+        rules="required"
+      />
+
+      <select2-with-validation
+        :required="true"
+        v-model="form.lesson_id"
+        :error="vForm.errors.get('lesson_id')"
+        :post-data="{ course_id: form.course_id }"
+        placeholder="Chọn bài học..."
+        label="Bài học"
+        data-vv-as="Bài học"
+        id-field="_id"
+        text-field="name"
+        ajax="/lesson/suggest"
+        name="lesson_id"
+        rules="required"
+      />
+
+      <select2-with-validation
+        :required="true"
+        v-model="form.part_id"
+        :error="vForm.errors.get('part_id')"
+        :post-data="{ course_id: form.course_id, lesson_id: form.lesson_id }"
+        placeholder="Chọn lesson part..."
+        label="Lesson part"
+        data-vv-as="Lesson part"
+        id-field="_id"
+        text-field="name"
+        ajax="/part/suggest"
+        name="part_id"
+        rules="required"
+      />
+
+      <checkboxes-with-validation
+        :required="true"
+        v-model="form.status"
+        :error="vForm.errors.get('status')"
+        label="Trạng thái"
+        placeholder="Trạng thái"
+        rules="required"
+        name="status"
+        switch
+        size="lg"
+      />
+    </validation-observer>
+  </b-modal>
+</template>
+
+<script>
+import Form from 'vform'
+import cloneDeep from 'lodash/cloneDeep'
+import { ValidationObserver } from 'vee-validate'
+import Select2WithValidation from '~/components/base/input/Select2WithValidation'
+
+import {
+  notifyAddSuccess,
+  notifyTryAgain,
+  notifyUpdateSuccess
+} from '~/utils/bootstrap-notify'
+import BTextInputWithValidation from '~/components/base/input/BTextInputWithValidation'
+import CheckboxesWithValidation from '~/components/base/input/CheckboxesWithValidation'
+import BTextAreaWithValidation from '~/components/base/input/BTextAreaWithValidation'
+import BSingleImageUploadWithValidation from '~/components/base/input/BSingleImageUploadWithValidation'
+
+const defaultForm = {
+  name: '',
+  display_name: '',
+  description: '',
+  featured_image: '',
+  course_id: null,
+  lesson_id: null,
+  part_id: null,
+  status: true
+}
+
+export default {
+  name: 'ActivityModal',
+  components: {
+    BSingleImageUploadWithValidation,
+    ValidationObserver,
+    BTextInputWithValidation,
+    BTextAreaWithValidation,
+    Select2WithValidation,
+    CheckboxesWithValidation
+  },
+  props: {
+    onActionSuccess: {
+      type: Function,
+      default: () => {}
+    }
+  },
+  data() {
+    return {
+      isEdit: false,
+      form: cloneDeep(defaultForm),
+      vForm: new Form()
+    }
+  },
+  watch: {
+    'form.course_id'(newVal, oldVal) {
+      if (oldVal !== null) {
+        this.form.lesson_id = null
+      }
+    },
+    'form.lesson_id'(newVal, oldVal) {
+      if (oldVal !== null) {
+        this.form.part_id = null
+      }
+    }
+  },
+  methods: {
+    show(item = null) {
+      if (item) {
+        this.isEdit = true
+        this.form = cloneDeep(item)
+        if (this.form.order === 0) {
+          this.form.order = '0'
+        }
+      }
+
+      this.$nextTick(() => {
+        this.$refs.modal.show()
+      })
+    },
+    async handleModalOk(bvModalEvt) {
+      bvModalEvt.preventDefault()
+
+      await this.validateForm()
+    },
+    handleModalHide(bvModalEvt) {
+      this.form = cloneDeep(defaultForm)
+      this.vForm = new Form()
+      this.isEdit = false
+    },
+    async validateForm() {
+      const isValid = await this.$refs.observer.validate()
+      if (isValid) {
+        if (this.isEdit) {
+          await this.updateItem()
+        } else {
+          await this.addItem()
+        }
+      }
+    },
+    async addItem() {
+      try {
+        this.vForm = new Form(this.form)
+        await this.vForm.post(this.$axios.defaults.baseURL + '/activity/add')
+
+        notifyAddSuccess('Part activity')
+        this.$refs.modal.hide()
+        this.onActionSuccess()
+      } catch (e) {
+        if (e.response) {
+          if (status !== 422) {
+            notifyTryAgain()
+          }
+        } else {
+          notifyTryAgain()
+        }
+      }
+    },
+    async updateItem() {
+      try {
+        this.vForm = new Form(this.form)
+        await this.vForm.post(this.$axios.defaults.baseURL + '/activity/edit')
+
+        notifyUpdateSuccess('Part activity')
+        this.$refs.modal.hide()
+        this.onActionSuccess()
+      } catch (e) {
+        if (e.response) {
+          if (status !== 422) {
+            notifyTryAgain()
+          }
+        } else {
+          notifyTryAgain()
+        }
+      }
+    }
+  }
+}
+</script>

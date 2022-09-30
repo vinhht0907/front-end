@@ -1,0 +1,3 @@
+export const QUESTION_BANK_SOURCE_TYPE_CONTRIBUTOR = 'contributor'
+export const QUESTION_BANK_SOURCE_TYPE_SCHOOL = 'school'
+export const QUESTION_BANK_SOURCE_TYPE_ALL = -1
